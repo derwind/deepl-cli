@@ -3,6 +3,8 @@ import argparse
 import configparser
 import requests
 import json
+import csv
+from typing import List
 
 
 def retrieve_default_key():
@@ -57,12 +59,34 @@ def command_glossary_language_pairs(args):
         print("Error: ", response.status_code, response.text)
 
 
+def read_glossaries(glossary_files: List[str]) -> str:
+    glossary_pairs = []
+    for pairs_file in glossary_files:
+        with open(pairs_file, encoding='utf-8', newline='') as fin:
+            for row in csv.reader(fin, delimiter='\t'):
+                for from_ in row[:-1]:
+                    if from_.startswith('#'):
+                        continue
+                    glossary_pairs.append(f'{from_},{row[-1]}')
+    return '\n'.join(glossary_pairs)
+
+
 def command_create_glossary(args):
     url = 'https://api-free.deepl.com/v2/glossaries'
+
+    if args.entries is None and args.glossary_files is None:
+        raise
 
     auth_key = args.auth_key or retrieve_default_key()
     if auth_key is None:
         raise
+
+    if args.entries is not None:
+        entries = args.entries
+    else:
+        entries = read_glossaries(args.glossary_files)
+        if not entries:
+            raise
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
@@ -72,7 +96,7 @@ def command_create_glossary(args):
         'source_lang': args.source_lang,
         'target_lang': args.target_lang,
         'name': args.name,
-        'entries': args.entries,
+        'entries': entries,
         'entries_format': args.entries_format,
     }
 
@@ -184,7 +208,11 @@ def main():
     subparser.add_argument('--source', dest='source_lang', metavar='LANGUAGE', type=str, default='en', help='source language')
     subparser.add_argument('--target', dest='target_lang', metavar='LANGUAGE', type=str, default='ja', help='target language')
     subparser.add_argument('--name', dest='name', metavar='NAME', type=str, required=True, help='glossaries name')
-    subparser.add_argument('--entries', dest='entries', metavar='ENTRIES', type=str, required=True, help='entries')
+    group = subparser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--entries', dest='entries', metavar='ENTRIES', type=str, default=None, help='entries')
+    group.add_argument(
+        '--glossary_files', dest='glossary_files', metavar='GLOSSARIES', action='append', type=str, default=None, help='TSV glossary files'
+    )
     subparser.add_argument('--entries_format', dest='entries_format', metavar='FORMAT', type=str, default='csv', help='entriesformat')
     subparser.set_defaults(handler=command_create_glossary)
 
