@@ -139,8 +139,8 @@ def command_delete_glossary(args):
     response = requests.delete(url, headers=headers)
 
     if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(json.dumps(result))
+        result = response.content.decode('utf-8')
+        print(result)
     else:
         print("Error: ", response.status_code, response.text)
 
@@ -157,8 +157,8 @@ def command_retrieve_glossary_entries(args):
     response = requests.get(url, headers=headers)
 
     if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(json.dumps(result))
+        result = response.content.decode('utf-8')
+        print(result)
     else:
         print("Error: ", response.status_code, response.text)
 
