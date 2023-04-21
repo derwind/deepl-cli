@@ -1,12 +1,27 @@
+import os
 import argparse
+import configparser
 import requests
 import json
+
+
+def retrieve_default_key():
+    config = configparser.ConfigParser()
+    ini_file_path = os.path.join(os.environ['HOME'], '.deepl', 'credentials')
+    config.read(ini_file_path)
+    return config['default'].get('auth_key')
 
 
 def command_translate(args):
     url = 'https://api-free.deepl.com/v2/translate'
 
-    params = {'auth_key': args.auth_key, 'text': args.text, 'target_lang': args.target_lang}
+    auth_key = args.auth_key
+    if auth_key is None:
+        auth_key = retrieve_default_key()
+    if auth_key is None:
+        raise
+
+    params = {'auth_key': auth_key, 'text': args.text, 'target_lang': args.target_lang}
 
     response = requests.post(url, data=params)
 
@@ -30,7 +45,10 @@ def main():
 
     args = parser.parse_args()
     if hasattr(args, 'handler'):
-        args.handler(args)
+        try:
+            args.handler(args)
+        except:
+            parser.print_help()
     else:
         parser.print_help()
 
