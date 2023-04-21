@@ -24,7 +24,7 @@ setup(
     name='deepl-cli',
     version=find_version('deeplcli', '__init__.py'),
     description='Universal Command Line Environment for DeepL APIs.',
-    py_modules=['deeplcli'],
+    packages=['deeplcli'],
     entry_points={
         'console_scripts': [
             'deepl = deeplcli.deepl:main',
