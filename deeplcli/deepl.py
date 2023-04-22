@@ -1,65 +1,78 @@
+'''A wrapper of DeepL APIs'''
+
 import os
-import argparse
+import sys
 import configparser
-import requests
 import json
 import csv
-from typing import List
+from typing import List, Optional
+import requests
+
+DEFAULT_TIMEOUT = 30.0
 
 
 def retrieve_default_key():
+    '''Retrieve Default Key'''
+
     config = configparser.ConfigParser()
     ini_file_path = os.path.join(os.environ['HOME'], '.deepl', 'credentials')
     config.read(ini_file_path)
     return config['default'].get('auth_key')
 
 
-def command_translate(args):
+def translate(source_lang: str, target_lang: str, text: str, glossary_id: Optional[str] = None, auth_key: Optional[str] = None) -> Optional[str]:
+    '''Request Translation'''
+
     url = 'https://api-free.deepl.com/v2/translate'
 
-    auth_key = args.auth_key or retrieve_default_key()
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
     }
 
-    params = {'source_lang': args.source_lang, 'target_lang': args.target_lang, 'text': args.text}
-    if args.glossary_id is not None:
-        params['glossary_id'] = args.glossary_id
+    params = {'source_lang': source_lang, 'target_lang': target_lang, 'text': text}
+    if glossary_id is not None:
+        params['glossary_id'] = glossary_id
 
-    response = requests.post(url, headers=headers, data=params)
+    response = requests.post(url, headers=headers, data=params, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(result['translations'][0]['text'])
-        # print(result['translations'])
-    else:
-        print("Error: ", response.status_code, response.text)
+    if not response.ok:
+        print("Error: ", response.status_code, response.text, file=sys.stderr)
+        return None
+
+    result: dict = json.loads(response.content.decode('utf-8'))
+    return result['translations'][0]['text']
 
 
-def command_glossary_language_pairs(args):
+def glossary_language_pairs(auth_key: Optional[str] = None) -> Optional[str]:
+    '''List Language Pairs Supported by Glossaries'''
+
     url = 'https://api-free.deepl.com/v2/glossary-language-pairs'
 
-    auth_key = args.auth_key or retrieve_default_key()
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
     }
 
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(json.dumps(result))
-    else:
-        print("Error: ", response.status_code, response.text)
+    if not response.ok:
+        print("Error: ", response.status_code, response.text, file=sys.stderr)
+        return None
+
+    result = response.content.decode('utf-8')
+    return result
 
 
 def read_glossaries(glossary_files: List[str]) -> str:
+    '''Read Glossaries'''
+
     glossary_pairs = []
     for pairs_file in glossary_files:
         with open(pairs_file, encoding='utf-8', newline='') as fin:
@@ -71,179 +84,138 @@ def read_glossaries(glossary_files: List[str]) -> str:
     return '\n'.join(glossary_pairs)
 
 
-def command_create_glossary(args):
+def create_glossary(
+    source_lang: str,
+    target_lang: str,
+    name: str,
+    entries: Optional[str] = None,
+    glossary_files: Optional[List[str]] = None,
+    entries_format: str = 'csv',
+    auth_key: Optional[str] = None,
+) -> Optional[str]:
+    '''Create a Glossary'''
+
     url = 'https://api-free.deepl.com/v2/glossaries'
 
-    if args.entries is None and args.glossary_files is None:
-        raise
+    if entries is None and not glossary_files:
+        return None
 
-    auth_key = args.auth_key or retrieve_default_key()
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
-    if args.entries is not None:
-        entries = args.entries
-    else:
-        entries = read_glossaries(args.glossary_files)
+    if glossary_files is not None:
+        entries = read_glossaries(glossary_files)
         if not entries:
-            raise
+            return None
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
     }
 
     params = {
-        'source_lang': args.source_lang,
-        'target_lang': args.target_lang,
-        'name': args.name,
+        'source_lang': source_lang,
+        'target_lang': target_lang,
+        'name': name,
         'entries': entries,
-        'entries_format': args.entries_format,
+        'entries_format': entries_format,
     }
 
-    response = requests.post(url, headers=headers, data=params)
+    response = requests.post(url, headers=headers, data=params, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(json.dumps(result))
-    else:
-        print("Error: ", response.status_code, response.text)
+    if not response.ok:
+        print("Error: ", response.status_code, response.text, file=sys.stderr)
+        return None
+
+    result = response.content.decode('utf-8')
+    return result
 
 
-def command_list_glossaries(args):
+def list_glossaries(auth_key: Optional[str] = None) -> Optional[str]:
+    '''List all Glossaries'''
+
     url = 'https://api-free.deepl.com/v2/glossaries'
 
-    auth_key = args.auth_key or retrieve_default_key()
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
     }
 
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(json.dumps(result))
-    else:
+    if not response.ok:
         print("Error: ", response.status_code, response.text)
+        return None
+
+    result = response.content.decode('utf-8')
+    return result
 
 
-def command_retrieve_glossary(args):
-    url = f'https://api-free.deepl.com/v2/glossaries/{args.glossary_id}'
+def retrieve_glossary(glossary_id: str, auth_key: Optional[str] = None):
+    '''Retrieve Glossary Details'''
 
-    auth_key = args.auth_key or retrieve_default_key()
+    url = f'https://api-free.deepl.com/v2/glossaries/{glossary_id}'
+
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
     }
 
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = json.loads(response.content.decode('utf-8'))
-        print(json.dumps(result))
-    else:
-        print("Error: ", response.status_code, response.text)
+    if not response.ok:
+        print("Error: ", response.status_code, response.text, file=sys.stderr)
+        return None
+
+    result = response.content.decode('utf-8')
+    return result
 
 
-def command_delete_glossary(args):
-    url = f'https://api-free.deepl.com/v2/glossaries/{args.glossary_id}'
+def delete_glossary(glossary_id: str, auth_key: Optional[str] = None) -> Optional[str]:
+    '''Delete a Glossary'''
 
-    auth_key = args.auth_key or retrieve_default_key()
+    url = f'https://api-free.deepl.com/v2/glossaries/{glossary_id}'
+
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
     headers = {
         'Authorization': 'DeepL-Auth-Key ' + auth_key,
     }
 
-    response = requests.delete(url, headers=headers)
+    response = requests.delete(url, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = response.content.decode('utf-8')
-        print(result)
-    else:
-        print("Error: ", response.status_code, response.text)
+    if not response.ok:
+        print("Error: ", response.status_code, response.text, file=sys.stderr)
+        return None
+
+    result = response.content.decode('utf-8')
+    return result
 
 
-def command_retrieve_glossary_entries(args):
-    url = f'https://api-free.deepl.com/v2/glossaries/{args.glossary_id}/entries'
+def retrieve_glossary_entries(glossary_id: str, auth_key: Optional[str] = None) -> Optional[str]:
+    '''Retrieve Glossary Entries'''
 
-    auth_key = args.auth_key or retrieve_default_key()
+    url = f'https://api-free.deepl.com/v2/glossaries/{glossary_id}/entries'
+
+    auth_key = auth_key or retrieve_default_key()
     if auth_key is None:
-        raise
+        return None
 
     headers = {'Authorization': 'DeepL-Auth-Key ' + auth_key, 'Accept': 'text/tab-separated-values'}
 
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=DEFAULT_TIMEOUT)
 
-    if response.ok:
-        result = response.content.decode('utf-8')
-        print(result)
-    else:
-        print("Error: ", response.status_code, response.text)
+    if not response.ok:
+        print("Error: ", response.status_code, response.text, file=sys.stderr)
+        return None
 
-
-def main():
-    parser = argparse.ArgumentParser(prog='deepl', description='Call DeepL Free APIs.')
-    subparsers = parser.add_subparsers()
-
-    subparser = subparsers.add_parser('translate', help='Request Translation')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.add_argument('--source', dest='source_lang', metavar='LANGUAGE', type=str, default='en', help='source language')
-    subparser.add_argument('--target', dest='target_lang', metavar='LANGUAGE', type=str, default='ja', help='target language')
-    subparser.add_argument('--glossary_id', dest='glossary_id', metavar='GLOSSARY', type=str, default=None, help='glossary id')
-    subparser.add_argument('--text', dest='text', metavar='TEXT', type=str, required=True, help='text')
-    subparser.set_defaults(handler=command_translate)
-
-    subparser = subparsers.add_parser('glossary-language-pairs', help='List Language Pairs Supported by Glossaries')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.set_defaults(handler=command_glossary_language_pairs)
-
-    subparser = subparsers.add_parser('create-glossary', help='Create a Glossary')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.add_argument('--source', dest='source_lang', metavar='LANGUAGE', type=str, default='en', help='source language')
-    subparser.add_argument('--target', dest='target_lang', metavar='LANGUAGE', type=str, default='ja', help='target language')
-    subparser.add_argument('--name', dest='name', metavar='NAME', type=str, required=True, help='glossaries name')
-    group = subparser.add_mutually_exclusive_group(required=True)
-    group.add_argument('--entries', dest='entries', metavar='ENTRIES', type=str, default=None, help='entries')
-    group.add_argument(
-        '--glossary_files', dest='glossary_files', metavar='GLOSSARIES', action='append', type=str, default=None, help='TSV glossary files'
-    )
-    subparser.add_argument('--entries_format', dest='entries_format', metavar='FORMAT', type=str, default='csv', help='entriesformat')
-    subparser.set_defaults(handler=command_create_glossary)
-
-    subparser = subparsers.add_parser('list-glossaries', help='List all Glossaries')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.set_defaults(handler=command_list_glossaries)
-
-    subparser = subparsers.add_parser('retrieve-glossary', help='Retrieve Glossary Details')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.add_argument('--glossary_id', dest='glossary_id', metavar='GLOSSARY', type=str, required=True, help='glossary id')
-    subparser.set_defaults(handler=command_retrieve_glossary)
-
-    subparser = subparsers.add_parser('delete-glossary', help='Delete a Glossary')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.add_argument('--glossary_id', dest='glossary_id', metavar='GLOSSARY', type=str, required=True, help='glossary id')
-    subparser.set_defaults(handler=command_delete_glossary)
-
-    subparser = subparsers.add_parser('retrieve-glossary-entries', help='Retrieve Glossary Entries')
-    subparser.add_argument('-k', '--key', dest='auth_key', metavar='AUTH_KEY', type=str, default=None, help='auth key for DeepL')
-    subparser.add_argument('--glossary_id', dest='glossary_id', metavar='GLOSSARY', type=str, required=True, help='glossary id')
-    subparser.set_defaults(handler=command_retrieve_glossary_entries)
-
-    args = parser.parse_args()
-    if hasattr(args, 'handler'):
-        try:
-            args.handler(args)
-        except:
-            parser.print_help()
-    else:
-        parser.print_help()
-
-
-if __name__ == '__main__':
-    main()
+    result = response.content.decode('utf-8')
+    return result

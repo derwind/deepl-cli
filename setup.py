@@ -27,7 +27,7 @@ setup(
     packages=['deeplcli'],
     entry_points={
         'console_scripts': [
-            'deepl = deeplcli.deepl:main',
+            'deepl = deeplcli.__main__:main',
         ]
     },
     install_requires=[],
